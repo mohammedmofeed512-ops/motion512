@@ -1,0 +1,30 @@
+{
+ "name": "مدرّب الكاميرا · محاكي جلسة التصوير",
+ "short_name": "مدرّب الكاميرا",
+ "lang": "ar",
+ "dir": "rtl",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#1b1b1b",
+ "theme_color": "#1b1b1b",
+ "description": "منصة تدريب طلاب التصوير على تجهيز الكاميرا وجلسات التصوير · Mohammed Mofeed @motion_512",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
