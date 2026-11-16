@@ -706,7 +706,7 @@ body.locked .wrap{filter:blur(6px) brightness(.5);pointer-events:none;user-selec
   });
   // returning student on the same device: the saved code must still be on the list
   const saved = lsGet();
-  if (saved && saved.id && ids.has(saved.id)){ gate.hidden = true; nameOf(saved.id, unhex(saved.k || '')).then(info => { if (expired(info.x)){ lsSet(null); lock(); err.className = 'err'; err.textContent = expMsg(info.x); } else unlock(info, saved.id); }); }
+  if (saved && saved.id && ids.has(saved.id)){ gate.hidden = true; nameOf(saved.id, unhex(saved.k || '')).then(info => { if (expired(info.x)){ lsSet(null); lock(); err.className = 'err'; err.textContent = expMsg(info.x); } else unlock(info, saved.id); }).catch(() => { lsSet(null); lock(); }); setTimeout(() => { if (gate.hidden && !window.AUTH){ lsSet(null); lock(); } }, 6000); }
   else { lsSet(null); lock(); }
 })();
 </script>
@@ -6006,12 +6006,12 @@ function kitSummaryHTML(){
 }
 const _renderV19 = render;
 render = function(){
-  const r = _renderV19.apply(this, arguments);
+  let r, err = null; try { r = _renderV19.apply(this, arguments); } catch (e) { err = e; }
   let k3 = document.getElementById('kit3d');
   if (!k3){ k3 = document.createElement('section'); k3.id = 'kit3d'; k3.className = 'panel kit3d'; const bn = document.getElementById('bench'); bn.parentNode.insertBefore(k3, bn); }
   const use3d = S.view === 'kit' && !S.phoneMode && !BENCH.nogl;
   if (S.view !== 'shoot'){ document.getElementById('bench').hidden = use3d; document.getElementById('lower').hidden = use3d; }
-  k3.hidden = !use3d; if (use3d) k3.innerHTML = kitSummaryHTML();
+  k3.hidden = !use3d; if (use3d){ try { k3.innerHTML = kitSummaryHTML(); } catch (e) { err = err || e; } }
   document.body.classList.toggle('phone-mode', S.view === 'kit' && !!S.phoneMode);
   let f = document.getElementById('benchFab');
   if (S.view === 'kit' && S.phoneMode && !BENCH.el){
@@ -6019,6 +6019,7 @@ render = function(){
   } else if (f) f.remove();
   if (S.view !== 'kit') BENCH.auto = false;
   if (use3d && !S.cam && !BENCH.el && !BENCH.auto && benchFree()){ BENCH.auto = true; setTimeout(() => { if (S.view === 'kit' && !S.cam && !BENCH.el && benchFree()) openBench({}); }, 60); }
+  if (err) console.error('render', err);
   return r;
 };
 (function(){ const st = document.createElement('style'); st.textContent = `
@@ -6481,7 +6482,7 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
 /* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
-const APP_VERSION = '2.0.2', APP_DATE = '17 نوفمبر 2026';
+const APP_VERSION = '2.0.3', APP_DATE = '17 نوفمبر 2026';
 const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
 const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
 const TEST_TRACKS = ['assess', 'exam', 'grad'];
