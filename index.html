@@ -6479,6 +6479,261 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
 (function(){ const g = document.querySelector('#gateForm .gate-logo, #gateForm .gate-lens'); if (g) g.outerHTML = APP_ICON;
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
+/* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
+const APP_VERSION = '2.0.0', APP_DATE = '16 نوفمبر 2026';
+const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
+const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
+const TEST_TRACKS = ['assess', 'exam', 'grad'];
+const TB_IC = {
+  train:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
+  sim:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+  tests:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="m9 13 2 2 4-4"/></svg>',
+  ach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8.5 20h7"/></svg>',
+  trainer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 19"/></svg>',
+  me:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>'};
+const TAB_LIST = () => [['train', 'التدريب'], ['sim', 'المحاكي'], ['tests', 'الاختبارات'], ['ach', 'الإنجازات'], ...(isTrainer() ? [['trainer', 'المدرّب']] : []), ['me', 'بياناتي']];
+let TAB = 'train';
+const trackOfMission = id => TRACKS.find(t => t.m.some(m => m.id === id));
+function tabOfView(v){
+  if (v === 'track') return TEST_TRACKS.includes(HUB.tr) ? 'tests' : 'train';
+  if (v === 'mission' || v === 'quiz'){ const t = trackOfMission(HUB.mid); return t && TEST_TRACKS.includes(t.id) ? 'tests' : 'train'; }
+  return {tests:'tests', ach:'ach', folio:'ach', cert:'ach', me:'me', prog:'me', trainer:'trainer', class:'trainer', impact:'trainer', guide:'trainer'}[v] || 'train';
+}
+const tabbar = document.createElement('nav'); tabbar.id = 'tabbar'; tabbar.hidden = true; tabbar.setAttribute('aria-label', 'أقسام البرنامج'); document.body.appendChild(tabbar);
+function barRender(){
+  const L = TAB_LIST();
+  tabbar.style.setProperty('--n', L.length);
+  tabbar.innerHTML = `<div class="tb-brand">${APP_ICON.replace('class="gate-icon"', 'class="tb-icon"')}<b>مدرّب الكاميرا</b><span class="tb-ver" title="رقم النسخة">v${APP_VERSION}</span></div>
+    <div class="tb-tabs" role="tablist">${L.map(([id, l]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${TAB === id}">${TB_IC[id]}<span>${l}</span></button>`).join('')}</div>`;
+}
+function barSync(){ tabbar.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === TAB))); document.body.dataset.ctab = TAB; }
+function setTab(t){
+  if (!window.AUTH) return;
+  if (t !== 'sim' && BENCH && BENCH.el){ try { const w = BENCH.el.firstChild.contentWindow; if (w && w.__bench && w.__bench.kitSnapshot) applyBenchKit(w.__bench.kitSnapshot(), 'close'); } catch (e) {} dropBench(); }
+  if (t === 'sim'){ TAB = 'sim'; hubClose(); if (S.view === 'shoot') shootRender(); else render(); window.scrollTo(0, 0); return; }
+  TAB = t; HUB.view = {train:'home', tests:'tests', ach:'ach', me:'me', trainer:'trainer'}[t] || 'home'; HUB.msg = ''; HUB.msg22 = '';
+  if (hubEl.hidden) hubOpen(); else { hubRender(); hubEl.scrollTop = 0; }
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); e.stopPropagation(); setTab(b.dataset.tab); }, true);
+
+/* hub close = simulator tab */
+const _hubCloseV25 = hubClose;
+hubClose = function(){ _hubCloseV25(); if (window.AUTH){ TAB = 'sim'; barSync(); } };
+
+/* ---- per-tab screens ---- */
+const tpl = html => { const t = document.createElement('template'); t.innerHTML = html; return t.content; };
+const tabHead = (eyebrow, title, sub) => `<div class="tab-head"><span class="eyebrow">${eyebrow}</span><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>`;
+function fpMine(){ progLoad(); return fingerprint({m: Object.fromEntries(Object.entries(PROG.m).map(([k, v]) => [k, [v.a, v.best, v.pass ? 1 : 0, v.first ? 1 : 0, v.tp, v.la, v.st]])), k: PROG.sk, s: PROG.sc, md: PROG.md}); }
+function tabTests(){
+  const home = tpl(hubHome()), g = home.querySelector('[data-hub^="track:assess"]'), grp = g && g.closest('.grp');
+  if (grp){ const h = grp.querySelector('.grp-h'); if (h) h.remove(); }
+  return tabHead('الاختبارات', 'قِس مستواك', 'التقييم القبلي قبل أن تبدأ، والاختبار النظري بعد الأساسيات، ومهمة التخرّج في النهاية. نتائجها تدخل شهادتك.')
+    + `<section class="hub-sec">${grp ? grp.outerHTML : ''}</section>
+    <section class="hub-sec"><div class="sec-h"><h3>اختبر معرفتك بالمعدات</h3></div>
+      <div class="next-card"><div><span class="eyebrow">على الطاولة ثلاثية الأبعاد</span><b>أسئلة سريعة عن أزرار الكاميرا وأجزائها</b><span>افتح الطاولة، ثم تبويب «اختبر نفسك» في لوحة الكاميرا.</span></div><button class="btn" data-bench="open">افتح الطاولة</button></div></section>`;
+}
+function badgesOf(fp){
+  progLoad(); const pr = typeof prepSummary === 'function' ? prepSummary() : null;
+  const done = id => { const t = TRACKS.find(x => x.id === id); return t && t.m.every(m => PROG.m[m.id] && PROG.m[m.id].pass); };
+  return [
+    ['◎', 'أول لقطة ناجحة', 'أنجزت أول مهمة', fp.passed >= 1],
+    ['✦', 'عشر مهمات', 'أنجزت 10 مهمات', fp.passed >= 10],
+    ['◐', 'سيد التعريض', 'أكملت مسار التعريض', done('expo')],
+    ['≋', 'مجمّد الحركة', 'أكملت مسار الحركة', done('motion')],
+    ['⚡', 'صديق الفلاش', 'أكملت مسار الفلاش', done('flash')],
+    ['⏱', 'تجهيز سريع', 'جهّزت كاميرا في أقل من دقيقة', !!(pr && pr.best && pr.best < 60)],
+    ['✓', 'تجهيز نظيف', 'تجهيز بلا أخطاء في المتوسط', !!(pr && pr.n >= 3 && pr.err === 0)],
+    ['★', 'خرّيج', 'أنجزت مهمة التخرّج', done('grad')]];
+}
+function tabAch(){
+  const fp = fpMine(), pr = typeof prepSummary === 'function' ? prepSummary() : null, total = TRACKS.reduce((a, t) => a + t.m.length, 0);
+  const prog = tpl(hubProg()), skills = [...prog.querySelectorAll('.mcard')].find(c => /بصمة مهاراتي/.test(c.textContent));
+  const B = badgesOf(fp);
+  return tabHead('الإنجازات', 'ما حققته حتى الآن')
+    + `<div class="ach-stats"><div><b class="num">${fp.passed}<small>/${total}</small></b><span>مهمة منجزة</span></div><div><b class="num">${fp.stars}</b><span>نجمة</span></div><div><b class="num">${fp.shots}</b><span>لقطة</span></div><div><b class="num">${pr ? pr.best + '<small>ث</small>' : '—'}</b><span>أفضل زمن تجهيز</span></div></div>
+    <section class="hub-sec"><div class="sec-h"><h3>الأوسمة</h3><span>${B.filter(b => b[3]).length}/${B.length}</span></div><div class="badges">${B.map(([i, t, d, ok]) => `<div class="badge ${ok ? 'on' : ''}"><i>${i}</i><b>${t}</b><small>${ok ? d : '🔒 ' + d}</small></div>`).join('')}</div></section>
+    <section class="hub-sec"><div class="sec-h"><h3>المسارات</h3></div><div class="mcard"><div class="fps">${TRACKS.map(tr => { const n = tr.m.filter(m => PROG.m[m.id] && PROG.m[m.id].pass).length; return `<div class="fp"><span>${tr.t}</span><i><b style="width:${Math.round(n / tr.m.length * 100)}%"></b></i><em>${n}/${tr.m.length}</em><small></small></div>`; }).join('')}</div></div></section>
+    ${skills ? `<section class="hub-sec">${skills.outerHTML}</section>` : ''}
+    <section class="hub-sec"><div class="sec-h"><h3>أعمالي وشهادتي</h3></div><div class="hub-tools"><button data-hub="folio"><i>▦</i><span><b>ملف أعمالي</b><small>أفضل لقطاتك للطباعة</small></span></button><button data-hub="cert"><i>✦</i><span><b>شهادتي</b><small>بعد الاختبار النهائي</small></span></button></div></section>`;
+}
+let UPD = null;
+const cmpVer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
+const isSite = () => location.href.startsWith(SITE_URL);
+function updLine(){
+  if (!UPD) return 'لم يُفحص بعد.';
+  if (UPD.busy) return 'جارٍ الفحص…';
+  if (UPD.err) return 'تعذّر الفحص (لا يوجد اتصال). جرّب لاحقاً.';
+  return cmpVer(UPD.v, APP_VERSION) > 0 ? `<b class="upd-new">نسخة أحدث متوفرة: v${esc(UPD.v)}</b>` : 'أنت على أحدث نسخة ✓';
+}
+function tabMe(){
+  const prog = tpl(hubProg()), cards = [...prog.querySelectorAll('.mcard')];
+  const pick = re => { const c = cards.find(x => re.test(x.textContent)); return c ? c.outerHTML : ''; };
+  return tabHead('بياناتي', esc((ctAuth() || {}).name || 'حسابي'), isTrainer() ? 'حساب مدرّب' : 'حساب متدرب')
+    + `<section class="hub-sec">${pick(/^\s*بياناتي/)}</section>
+    <section class="hub-sec">${pick(/ملف التقدّم/)}${pick(/كود التقدّم/)}</section>
+    <section class="hub-sec"><div class="sec-h"><h3>الإعدادات</h3></div>
+      <div class="mcard me-set"><div class="me-row"><div><b>المظهر</b><small>ساطع أو مظلم</small></div>${themeBtn()}</div>
+      <div class="me-row"><div><b>رقم النسخة</b><small>v${APP_VERSION} · ${APP_DATE}</small><small class="upd-line">${updLine()}</small></div><button class="btn" data-me="upd">${UPD && !UPD.err && UPD.v && cmpVer(UPD.v, APP_VERSION) > 0 ? 'حدّث الآن' : 'افحص التحديثات'}</button></div>
+      <div class="me-row"><div><b>تسجيل الخروج</b><small>تقدّمك يبقى محفوظاً على هذا الجهاز</small></div><button class="btn btn-ghost" data-me="logout">خروج</button></div></div></section>`;
+}
+async function checkUpdate(){
+  UPD = {busy: 1}; if (HUB.view === 'me' && !hubEl.hidden) hubRender();
+  try { const r = await fetch(UPDATE_URL + '?t=' + Date.now(), {cache: 'no-store'}); UPD = await r.json(); if (!UPD || !UPD.v) throw 0; } catch (e) { UPD = {err: 1}; }
+  if (HUB.view === 'me' && !hubEl.hidden) hubRender();
+  updBanner();
+}
+function updBanner(){
+  let b = document.getElementById('updBanner');
+  const newer = UPD && UPD.v && cmpVer(UPD.v, APP_VERSION) > 0;
+  if (!newer){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('div'); b.id = 'updBanner'; b.dir = 'rtl'; document.body.appendChild(b); }
+  b.innerHTML = `<span>نسخة أحدث متوفرة <b>v${esc(UPD.v)}</b> (أنت على v${APP_VERSION})</span><button type="button" data-me="upd">حدّث الآن</button><button type="button" class="x" aria-label="إغلاق" data-me="updx">×</button>`;
+}
+function doUpdate(){
+  if (isSite()){ (navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration().then(r => r && r.update()) : Promise.resolve()).catch(() => {}).then(() => setTimeout(() => location.reload(), 600)); return; }
+  window.open(SITE_URL, '_blank', 'noopener');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-me]'); if (!b) return; e.preventDefault(); e.stopPropagation();
+  const a = b.dataset.me;
+  if (a === 'logout'){ const o = document.querySelector('#whoBox button:last-child'); if (o) o.click(); return; }
+  if (a === 'updx'){ const x = document.getElementById('updBanner'); if (x) x.remove(); return; }
+  if (a === 'upd'){ if (UPD && UPD.v && cmpVer(UPD.v, APP_VERSION) > 0) doUpdate(); else checkUpdate(); }
+}, true);
+
+/* training tab = the old home, trimmed to the path */
+function homeTrim(){
+  const g = hubEl.querySelector('[data-hub^="track:assess"]'); if (g) g.closest('.grp')?.remove();
+  hubEl.querySelector('.bench-card')?.closest('.hub-sec')?.remove();
+  const tools = hubEl.querySelector('.hub-tools'), field = tools && tools.querySelector('[data-hub="field"]');
+  if (tools){ const sec = tools.closest('.hub-sec'); if (field){ sec.querySelector('h3').textContent = 'تمرين ميداني'; tools.innerHTML = ''; tools.appendChild(field); } else sec.remove(); }
+  const tt = hubEl.querySelector('.hub-top .hub-tt'); if (tt){ const e = tt.querySelector('.eyebrow'); if (e) e.textContent = 'التدريب · مسارك خطوة بخطوة'; }
+}
+function tidyHub(){
+  hubEl.querySelectorAll('.hub-top [data-hub="home"]').forEach(b => { const back = TAB === 'tests' ? 'tests' : TAB === 'ach' ? 'ach' : null; if (back){ b.removeAttribute('data-hub'); b.dataset.tab = back; } });
+}
+const _hubRenderV25 = hubRender;
+hubRender = function(){
+  if (!PROG) progLoad();
+  if (HUB.view === 'prog') HUB.view = 'me';
+  const v = HUB.view;
+  TAB = tabOfView(v);
+  if (v === 'tests' || v === 'ach' || v === 'me'){
+    hubEl.innerHTML = `<div class="hub-in tab-${v}">${({tests: tabTests, ach: tabAch, me: tabMe})[v]()}${typeof sigHTML === 'function' ? sigHTML('sl-hub') : ''}</div>`;
+  } else { _hubRenderV25.apply(this, arguments); if (v === 'home') homeTrim(); }
+  tidyHub(); barSync();
+};
+
+
+/* phone: the mission brief folds so the camera stays in view */
+let MB_OPEN = false;
+shootRender = (prev => function(){ const r = prev.apply(this, arguments);
+  const mb = document.querySelector('#shoot .mbar'), chk = mb && mb.querySelector('.mb-chk');
+  if (chk && !mb.querySelector('.mb-tog')){ const n = chk.children.length; const b = document.createElement('button'); b.type = 'button'; b.className = 'mb-tog'; b.setAttribute('aria-expanded', String(MB_OPEN));
+    b.innerHTML = `<span>شروط المهمة (${n})</span><i>▾</i>`; b.onclick = () => { MB_OPEN = !MB_OPEN; mb.classList.toggle('mb-open', MB_OPEN); b.setAttribute('aria-expanded', String(MB_OPEN)); };
+    chk.before(b); mb.classList.toggle('mb-open', MB_OPEN); }
+  return r; })(shootRender);
+/* show / hide the shell with the session */
+function shellOn(){ barRender(); tabbar.hidden = false; document.body.classList.add('tabs-on'); barSync(); if (navigator.onLine !== false) setTimeout(checkUpdate, 1500); }
+function shellOff(){ tabbar.hidden = true; document.body.classList.remove('tabs-on'); TAB = 'train'; const b = document.getElementById('updBanner'); if (b) b.remove(); }
+window.addEventListener('ct-auth', shellOn);
+window.addEventListener('ct-logout', shellOff);
+if (window.AUTH) shellOn();
+(function(){ const g = document.getElementById('gateForm'); if (g && !g.querySelector('.gate-ver')) g.insertAdjacentHTML('beforeend', `<p class="gate-ver">الإصدار <b>v${APP_VERSION}</b> · ${APP_DATE}</p>`); })();
+
+(function(){ const st = document.createElement('style'); st.id = 'shell-v25'; st.textContent = `
+#tabbar{position:fixed;left:0;right:0;z-index:9200;background:var(--bg);box-shadow:0 0 0 100vmax transparent;-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);font-family:var(--f-body);color:var(--fg)}
+#tabbar[hidden]{display:none!important}
+#tabbar .tb-tabs{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr))}
+#tabbar [data-tab]{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:var(--muted);font:inherit;cursor:pointer;min-width:0;-webkit-tap-highlight-color:transparent}
+#tabbar [data-tab] svg{width:24px;height:24px;flex:none;padding:3px 14px;box-sizing:content-box;border-radius:99px;transition:background .2s,color .2s}
+#tabbar [data-tab] span{font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#tabbar [data-tab][aria-selected="true"]{color:var(--fg)}
+#tabbar [data-tab][aria-selected="true"] svg{background:var(--accent-soft);color:var(--accent)}
+#tabbar [data-tab]:focus-visible{outline:2px solid var(--accent);outline-offset:-4px;border-radius:12px}
+.tb-brand{display:none}
+.tb-icon{width:34px;height:34px;border-radius:22%;flex:none;box-shadow:0 0 0 1px var(--line)}
+.tb-ver{font:600 12px var(--f-mono,monospace);padding:3px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);direction:ltr}
+/* phone & tablet: bottom bar */
+@media (max-width:899px){
+  #tabbar{bottom:0;border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))}
+  #tabbar .tb-tabs{height:56px}
+  body.tabs-on{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  body.tabs-on .hub{bottom:calc(68px + env(safe-area-inset-bottom,0px))}
+}
+/* desktop: top bar */
+@media (min-width:900px){
+  #tabbar{top:0;height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 max(24px,calc((100vw - 1200px)/2))}
+  .tb-brand{display:flex;align-items:center;gap:10px;flex:none}
+  .tb-brand b{font:600 16px var(--f-display)}
+  #tabbar .tb-tabs{display:flex;gap:4px}
+  #tabbar [data-tab]{flex-direction:row;gap:8px;height:44px;padding:0 16px;border-radius:99px}
+  #tabbar [data-tab] svg{width:20px;height:20px;padding:0;background:transparent!important}
+  #tabbar [data-tab] span{font-size:14.5px}
+  #tabbar [data-tab]:hover{background:var(--accent-soft)}
+  #tabbar [data-tab][aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+  #tabbar [data-tab][aria-selected="true"] svg{color:var(--accent-ink)}
+  body.tabs-on{padding-top:64px}
+  body.tabs-on .hub{top:64px}
+  body.tabs-on .coach-fixed{top:76px}
+}
+/* chrome the tabs replace */
+body.tabs-on #whoBox,body.tabs-on .wrap header .theme-sw,body.tabs-on .hub [data-hub="close"],body.tabs-on .hub [data-hub="logout"],body.tabs-on .hub-top .theme-sw,body.tabs-on .hub [data-hub="prog"]{display:none!important}
+body.tabs-on .bench-ov{z-index:9100}
+@media (max-width:899px){body.tabs-on .bench-ov{bottom:calc(68px + env(safe-area-inset-bottom,0px))}}
+@media (min-width:900px){body.tabs-on .bench-ov{top:64px}}
+body.tabs-on .hub-in{padding-top:20px}
+.tab-head{margin:4px 0 18px}.tab-head h2{margin:2px 0 4px;font:600 clamp(24px,5vw,32px)/1.25 var(--f-display)}.tab-head p{margin:0;color:var(--muted);font-size:15px;line-height:1.6;max-width:60ch}
+.ach-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.ach-stats div{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 12px;display:grid;gap:2px}
+.ach-stats b{font:600 28px/1.1 var(--f-display);color:var(--accent)}.ach-stats b small{font-size:14px;color:var(--muted);margin-inline-start:2px}.ach-stats span{font-size:13px;color:var(--muted)}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.badge{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 12px;display:grid;gap:4px;justify-items:start;opacity:.55}
+.badge.on{opacity:1;border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.badge i{font-style:normal;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:18px;background:var(--line);color:var(--muted)}
+.badge.on i{background:var(--accent);color:var(--accent-ink)}.badge b{font-size:14.5px}.badge small{font-size:12.5px;color:var(--muted);line-height:1.45}
+.me-set{display:grid;gap:0;padding:4px 16px}.me-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}.me-row:last-child{border-bottom:0}
+.me-row b{display:block;font-size:15px}.me-row small{display:block;color:var(--muted);font-size:13px;line-height:1.5}.upd-new{color:var(--accent);font-size:13.5px!important}
+.mb-tog{display:none}
+.gate-ver{margin:10px 0 0;text-align:center;font-size:12.5px;color:var(--muted)}.gate-ver b{font-family:var(--f-mono,monospace);color:var(--accent);direction:ltr;display:inline-block}
+#updBanner{position:fixed;z-index:9600;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 10px);width:max-content;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font:600 14px var(--f-body);box-shadow:0 14px 34px -12px rgba(0,0,0,.45);max-width:calc(100% - 24px)}
+#updBanner button{border:0;border-radius:99px;padding:7px 14px;background:var(--accent-ink);color:var(--accent);font:700 13px var(--f-body);cursor:pointer;white-space:nowrap}
+#updBanner .x{background:transparent;color:var(--accent-ink);font-size:20px;padding:0 6px}
+#updBanner span{flex:1;min-width:0;line-height:1.45}
+@media (max-width:620px){#updBanner{left:12px;right:12px;transform:none;width:auto}}
+@media (min-width:900px){#updBanner{top:76px}}
+@media (max-width:620px){.ach-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.badges{grid-template-columns:repeat(2,minmax(0,1fr))}.me-row{flex-wrap:wrap}}
+
+/* ---- simulator screen on phones: compact header, no overlaps ---- */
+@media (max-width:699px){
+  body.tabs-on .wrap{padding-top:10px}
+  body.tabs-on .wrap header{gap:8px;margin-bottom:10px}
+  body.tabs-on .wrap header .eyebrow{display:none}
+  body.tabs-on .wrap header h1{font-size:19px!important;line-height:1.3}
+  body.tabs-on .wrap header .hdr-logo{width:40px}
+  body.tabs-on #checks{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;scrollbar-width:none;margin:0;padding-bottom:2px}
+  body.tabs-on #checks::-webkit-scrollbar{display:none}
+  body.tabs-on #checks li{flex:none}
+  .stage-btns{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px!important;align-items:center}
+  .stage-btns .viewsw{grid-column:1/-1;order:-1;display:grid!important;grid-template-columns:1fr 1fr;width:100%;box-sizing:border-box}
+  .stage-btns .viewsw button{width:auto!important;min-width:0;height:40px;padding:0 8px!important;white-space:nowrap;border-radius:99px}
+  .stage-btns .nav-l{grid-column:1/-1;display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;gap:6px;min-width:0}
+  .stage-btns .nav-l::-webkit-scrollbar{display:none}
+  .stage-btns .nav-l .btn{white-space:nowrap;flex:none}
+  .stage-btns > .row:not(.nav-l){grid-column:1/-1;display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:6px}
+  .stage-btns .gbtn{height:40px!important;min-height:0!important;padding:0 12px!important;display:flex!important;align-items:center;gap:6px;border-radius:99px!important}
+  .rig{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important;align-items:stretch}
+  .rig .rg{width:auto!important;margin:0!important;box-sizing:border-box}
+  .rig .rg:nth-child(1),.rig .rg:nth-child(2),.rig .rg.ext{grid-column:1/-1}
+  .mb-tog{display:flex!important;width:100%;justify-content:space-between;align-items:center;margin:6px 0 2px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 14px var(--f-body);cursor:pointer}
+  .mb-tog i{font-style:normal;transition:transform .2s}.mbar.mb-open .mb-tog i{transform:rotate(180deg)}
+  .mbar:not(.mb-open) .mb-chk,.mbar:not(.mb-open) .mb-note{display:none!important}
+  .mbar .mb-brief{margin:4px 0!important;font-size:14.5px}
+  .mbar .mb-chk{display:flex;flex-wrap:wrap;gap:6px}
+  .mbar .mb-chk li{font-size:13px;padding:5px 10px}
+}
+`; document.head.appendChild(st); })();
+
 render();
 coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كاميرا إلى الطاولة.', 'info');
 </script>
@@ -6487,6 +6742,7 @@ coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كا�
 <script>
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').then(r => {
+    try { r.update(); } catch (e) {}
     r.addEventListener('updatefound', () => { const w = r.installing; w && w.addEventListener('statechange', () => {
       if (w.state === 'installed' && navigator.serviceWorker.controller) {
         const d = document.createElement('div'); d.dir = 'rtl';
