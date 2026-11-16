@@ -6590,7 +6590,12 @@ function updBanner(){
   b.innerHTML = `<span>نسخة أحدث متوفرة <b>v${esc(UPD.v)}</b> (أنت على v${APP_VERSION})</span><button type="button" data-me="upd">حدّث الآن</button><button type="button" class="x" aria-label="إغلاق" data-me="updx">×</button>`;
 }
 function doUpdate(){
-  if (isSite()){ (navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration().then(r => r && r.update()) : Promise.resolve()).catch(() => {}).then(() => setTimeout(() => location.reload(), 600)); return; }
+  if (isSite()){
+    const go = () => location.reload();
+    fetch('./index.html', {cache: 'reload'}).then(res => { if (!res.ok || !window.caches) return;
+      return caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('camtrainer-') && k !== 'camtrainer-fonts').map(k => caches.open(k).then(c => Promise.all([c.put('./', res.clone()), c.put('./index.html', res.clone())])))));
+    }).catch(() => {}).then(() => navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}) : 0).then(() => setTimeout(go, 300));
+    return; }
   window.open(SITE_URL, '_blank', 'noopener');
 }
 document.addEventListener('click', e => {

@@ -1,5 +1,5 @@
-/* offline cache for the camera trainer · version 9c967b6f441e */
-const C = 'camtrainer-9c967b6f441e';
+/* offline cache for the camera trainer · version b4ec6f2e2d28 */
+const C = 'camtrainer-b4ec6f2e2d28';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon-64.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(CORE))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C && k.startsWith('camtrainer-')).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
