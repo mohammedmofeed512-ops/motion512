@@ -6482,7 +6482,7 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
 /* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
-const APP_VERSION = '2.0.3', APP_DATE = '17 نوفمبر 2026';
+const APP_VERSION = '2.1.0', APP_DATE = '17 نوفمبر 2026';
 const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
 const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
 const TEST_TRACKS = ['assess', 'exam', 'grad'];
@@ -6796,6 +6796,98 @@ hubTrack = function(){
 window.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-bench="quiz"]'); if (!b) return; e.preventDefault(); e.stopPropagation(); hubClose(); TAB = 'tests'; barSync(); openBench({quiz: true}); }, true);
 const _setTabV27 = setTab;
 setTab = function(t){ if (BENCH && BENCH.el && BENCH.quiz && t !== 'sim'){ dropBench(); } return _setTabV27(t); };
+
+/* ================= V28: cloud sync — progress follows the code to any device whenever there is internet ================= */
+const CSYNC = {url: 'https://qpccdnhznxtwklctyzgz.supabase.co/rest/v1/rpc/', key: 'sb_publishable_vUaw-ItGhc0TtIlifv9HNQ_z2wtDoUm',
+  busy: false, dirty: false, t: null, last: null, state: 'idle', cls: 0};
+const CSYNC_LAST = () => 'camtrainer.sync.v1.' + ((ctAuth() || {}).id || 'x').slice(0, 20);
+try { CSYNC.last = +localStorage.getItem(CSYNC_LAST()) || null; } catch (e) {}
+const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+async function syncCreds(){
+  if (!window.AUTH || !(window.crypto && crypto.subtle)) return null;
+  let s = null; try { s = JSON.parse(localStorage.getItem('camtrainer.auth.v1') || 'null'); } catch (e) {}
+  if (!s || !s.k || s.id !== AUTH.id) return null;
+  return {id: s.id, secret: hexOf(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('ctsync|' + s.k)))};
+}
+async function rpc(fn, body){
+  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 15000);
+  try {
+    const r = await fetch(CSYNC.url + fn, {method: 'POST', headers: {'apikey': CSYNC.key, 'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: ac.signal, cache: 'no-store'});
+    if (!r.ok){ const e = new Error('http ' + r.status); e.status = r.status; throw e; }
+    return await r.json();
+  } finally { clearTimeout(to); }
+}
+function syncPaint(){ if (!hubEl.hidden && HUB.view === 'me'){ const el = document.getElementById('syncLine'); if (el) el.innerHTML = syncLine(); } }
+const agoTxt = t => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'الآن' : m < 60 ? `منذ ${m} دقيقة` : m < 1440 ? `منذ ${Math.round(m / 60)} ساعة` : new Date(t).toLocaleDateString('en-GB'); };
+function syncLine(){
+  const st = CSYNC.state;
+  if (st === 'busy') return 'جارٍ المزامنة…';
+  if (st === 'nocrypto') return 'هذا المتصفح لا يدعم المزامنة. استخدم ملف التقدّم.';
+  if (st === 'denied') return 'تعذّرت المزامنة لهذا الكود (منتهٍ أو غير مسجّل).';
+  if (st === 'offline' || st === 'error') return `لا يوجد اتصال الآن، سيُحفظ تقدّمك تلقائياً عند عودة الإنترنت.${CSYNC.last ? ' آخر مزامنة: ' + agoTxt(CSYNC.last) : ''}`;
+  if (CSYNC.dirty) return 'تغييرات جديدة بانتظار المزامنة…';
+  return CSYNC.last ? `محفوظ على الإنترنت ✓ · آخر مزامنة ${agoTxt(CSYNC.last)}` : 'لم تتم المزامنة بعد.';
+}
+async function syncNow(opts = {}){
+  if (CSYNC.busy || !window.AUTH) return;
+  const c = await syncCreds(); if (!c){ CSYNC.state = window.crypto && crypto.subtle ? 'idle' : 'nocrypto'; syncPaint(); return; }
+  if (navigator.onLine === false){ CSYNC.state = 'offline'; syncPaint(); return; }
+  CSYNC.busy = true; CSYNC.state = 'busy'; syncPaint();
+  try {
+    /* 1. pull and merge (keeps the best of both devices) */
+    const rows = await rpc('ct_pull', {p_id: c.id, p_secret: c.secret});
+    let pulled = false;
+    if (rows && rows[0] && rows[0].data){
+      try { const o = await readProgressCode(rows[0].data); CSYNC.quiet = true; await restoreFrom(o); CSYNC.quiet = false; pulled = true; } catch (e) { CSYNC.quiet = false; }
+    }
+    /* 2. push the merged progress */
+    const code = await makeProgressCode(), p = profLoad() || {};
+    await rpc('ct_push', {p_id: c.id, p_secret: c.secret, p_data: code, p_name: (AUTH.name || p.n || '').slice(0, 80), p_ver: typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''});
+    CSYNC.dirty = false; CSYNC.last = Date.now(); CSYNC.state = 'ok'; try { localStorage.setItem(CSYNC_LAST(), String(CSYNC.last)); } catch (e) {}
+    if (pulled){
+      const ov = document.getElementById('pfOv'); if (ov && (profLoad() || {}).n) ov.remove();
+      if (!hubEl.hidden && HUB.view !== 'mission' && HUB.view !== 'quiz') hubRender();
+    }
+  } catch (e) { CSYNC.state = e && (e.status === 400 || e.status === 403 || /denied/.test(String(e.message))) ? 'denied' : (navigator.onLine === false ? 'offline' : 'error'); }
+  CSYNC.busy = false; syncPaint();
+}
+function syncSoon(ms = 4000){ if (!window.AUTH) return; CSYNC.dirty = true; clearTimeout(CSYNC.t); CSYNC.t = setTimeout(() => syncNow(), ms); }
+/* every local save marks the progress dirty */
+const _progSaveV28 = progSave;
+progSave = function(){ const r = _progSaveV28.apply(this, arguments); if (!CSYNC.quiet) syncSoon(); return r; };
+const _profSaveV28 = profSave;
+profSave = function(){ const r = _profSaveV28.apply(this, arguments); if (!CSYNC.quiet) syncSoon(); return r; };
+window.addEventListener('online', () => { if (window.AUTH) syncNow(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && CSYNC.dirty && window.AUTH){ clearTimeout(CSYNC.t); syncNow(); } });
+window.addEventListener('ct-auth', () => { try { CSYNC.last = +localStorage.getItem(CSYNC_LAST()) || null; } catch (e) {} setTimeout(async () => { await syncNow(); if (isTrainer() && navigator.onLine !== false){ await syncClass(); if (!hubEl.hidden && HUB.view === 'trainer') hubRender(); } }, 600); });
+window.addEventListener('ct-logout', () => { clearTimeout(CSYNC.t); CSYNC.dirty = false; CSYNC.state = 'idle'; CSYNC.last = null; });
+setInterval(() => { if (window.AUTH && CSYNC.dirty && navigator.onLine !== false) syncNow(); }, 60000);
+
+/* «بياناتي»: sync status row */
+const _tabMeV28 = tabMe;
+tabMe = function(){
+  return _tabMeV28().replace('<div class="me-row"><div><b>رقم النسخة</b>',
+    `<div class="me-row"><div><b>المزامنة مع الإنترنت</b><small>تقدّمك يُحفظ باسم كودك، فتكمل من أي جهاز</small><small class="upd-line" id="syncLine">${syncLine()}</small></div><button class="btn" data-sync="now">زامن الآن</button></div><div class="me-row"><div><b>رقم النسخة</b>`);
+};
+/* trainer: pull the whole class */
+async function syncClass(){
+  const c = await syncCreds(); if (!c){ HUB.msg22 = 'هذا المتصفح لا يدعم الجلب من الإنترنت.'; return; }
+  try {
+    const rows = await rpc('ct_class', {p_id: c.id, p_secret: c.secret});
+    const r = await addCodesV22((rows || []).map(x => x.data));
+    CSYNC.cls = Date.now(); HUB.msg22 = `جُلب تقدّم ${r.ok} ${r.ok === 1 ? 'متدرب' : 'متدربين'} من الإنترنت ✓${r.bad ? ` · ${r.bad} غير صالح` : ''}`;
+  } catch (e) { HUB.msg22 = navigator.onLine === false ? 'لا يوجد اتصال بالإنترنت.' : 'تعذّر الجلب الآن. حاول لاحقاً.'; }
+}
+const _hubTrainerV28 = hubTrainer;
+hubTrainer = function(){
+  return _hubTrainerV28().replace('<div class="mcard"><h3>افتح ملفات المتدربين</h3>',
+    `<div class="mcard"><h3>تقدّم الصف من الإنترنت</h3><p>كل متدرب يتصل بالإنترنت يُحفظ تقدّمه تلقائياً، واجلبه هنا دون ملفات.${CSYNC.cls ? ` آخر جلب: ${agoTxt(CSYNC.cls)}.` : ''}</p><div class="row"><button class="btn primary" data-sync="class">جلب تقدّم المتدربين</button></div></div><div class="mcard"><h3>افتح ملفات المتدربين</h3>`);
+};
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-sync]'); if (!b) return; e.preventDefault(); e.stopPropagation();
+  if (b.dataset.sync === 'now'){ CSYNC.dirty = true; await syncNow(); }
+  if (b.dataset.sync === 'class'){ b.disabled = true; b.textContent = 'جارٍ الجلب…'; await syncClass(); hubRender(); }
+}, true);
 
 render();
 coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كاميرا إلى الطاولة.', 'info');
