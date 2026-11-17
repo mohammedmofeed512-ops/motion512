@@ -2150,6 +2150,7 @@ function opts(id){
 }
 function optIdx(id){
   const it = MI[id];
+  if (!SH || !SH.set){ if (!it || it.special) return 0; const d = it.d && (it.d[menuSystem()] ?? it.d[brandKey()]); return d || 0; }
   if (it.special === 'ec'){ const l = ecList(); return l.indexOf(nearestVal(l, SH.ec)); }
   if (it.special === 'iso') return SH.user.iso === 'AUTO' ? 0 : 1 + isoList().indexOf(SH.user.iso);
   if (SH.set[id] == null){ const d = it.d && (it.d[menuSystem()] ?? it.d[brandKey()]); SH.set[id] = d || 0; }
@@ -6137,7 +6138,8 @@ const IBIS = {'canon-r6ii':8,'canon-r6iii':8.5,'canon-r5ii':8.5,'canon-r7':7,'ca
 const LENS_IS = new Set(["rf-24105-4l", "rf-1535-28l", "rf-70200-28l", "rfs-1845", "rfs-18150", "efs-1855", "efs-1018", "ef-70200-28l", "e-1650", "z-70200-28s", "zdx-1650", "zdx-50250", "afs-2470-28e", "afs-70200-28e", "afsdx-1855", "rf-85-2", "rf-35-18", "rf-100-28l", "rf-100400", "rfs-55210", "ef-35-2", "ef-100-28l", "ef-24105-4l", "ef-70300", "efs-55250", "efs-18135", "fe-24105-4", "fe-90-28", "fe-100400gm", "e-18135", "e-70350", "z-105-28s", "z-100400s", "zdx-18140", "afs-105-28g", "afs-24120-4g", "afp-70300", "afsdx-18140", "afpdx-70300"]);
 function stabStops(c){
   if (!c || c.type === 'phone') return 0;
-  const fx = effect(); if (fx && fx.stab === false) return 0;
+  let fx = null; try { fx = (typeof SH !== 'undefined' && SH && SH.set) ? effect() : null; } catch (e) { fx = null; }
+  if (fx && fx.stab === false) return 0;
   const L = typeof lensObj === 'function' ? lensObj() : null, lensIS = L && (LENS_IS.has(L.id) || /(^|\s)IS(\s|$)|OSS|\bVR\b/.test(L.name)) ? 4 : 0;
   return Math.max(IBIS[c.id] || 0, lensIS);
 }
@@ -6482,7 +6484,7 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
 /* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
-const APP_VERSION = '2.1.0', APP_DATE = '17 نوفمبر 2026';
+const APP_VERSION = '2.1.1', APP_DATE = '17 نوفمبر 2026';
 const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
 const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
 const TEST_TRACKS = ['assess', 'exam', 'grad'];
@@ -6888,6 +6890,22 @@ document.addEventListener('click', async e => {
   if (b.dataset.sync === 'now'){ CSYNC.dirty = true; await syncNow(); }
   if (b.dataset.sync === 'class'){ b.disabled = true; b.textContent = 'جارٍ الجلب…'; await syncClass(); hubRender(); }
 }, true);
+
+/* ================= V29: free shooting has its own entry; it never inherits a finished or abandoned mission ================= */
+function freeShoot(){
+  MS = null; TAB = 'sim'; hubClose();
+  if (kitReady()){ S.view = S.loc ? 'shoot' : 'loc'; if (S.view === 'shoot'){ shInit(); } render(); window.scrollTo(0, 0); coach(S.view === 'shoot' ? 'تصوير حر: لا توجد مهمة، جرّب ما تريد.' : 'تصوير حر: اختر مكان التصوير أولاً.', 'ok'); }
+  else { S.view = 'kit'; render(); if (benchFree()) openBench({}); coach('تصوير حر: جهّز الكاميرا على الطاولة أولاً، ثم اختر الموقع.', 'info'); }
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-free]'); if (!b) return; e.preventDefault(); e.stopPropagation(); freeShoot(); }, true);
+const _homeTrimV29 = homeTrim;
+homeTrim = function(){
+  _homeTrimV29();
+  const sec = document.createElement('section'); sec.className = 'hub-sec';
+  sec.innerHTML = `<div class="sec-h"><h3>تصوير حر</h3></div><div class="next-card"><div><span class="eyebrow">بدون مهمة</span><b>صوّر ما تريد في أي موقع</b><span>${kitReady() ? 'بمعداتك المجهّزة الآن' : 'ستجهّز الكاميرا على الطاولة أولاً'}</span></div><button class="btn primary" data-free="1">ابدأ التصوير الحر</button></div>`;
+  const anchor = hubEl.querySelector('.hub-tools')?.closest('.hub-sec') || hubEl.querySelector('.hub-in > .hub-sec:last-of-type');
+  if (anchor) anchor.before(sec); else hubEl.querySelector('.hub-in')?.appendChild(sec);
+};
 
 render();
 coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كاميرا إلى الطاولة.', 'info');
