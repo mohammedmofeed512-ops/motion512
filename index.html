@@ -6848,7 +6848,7 @@ async function syncNow(opts = {}){
       const ov = document.getElementById('pfOv'); if (ov && (profLoad() || {}).n) ov.remove();
       if (!hubEl.hidden && HUB.view !== 'mission' && HUB.view !== 'quiz') hubRender();
     }
-  } catch (e) { CSYNC.state = e && (e.status === 400 || e.status === 403 || /denied/.test(String(e.message))) ? 'denied' : (navigator.onLine === false ? 'offline' : 'error'); }
+  } catch (e) { CSYNC.state = e && (e.status === 400 || e.status === 401 || e.status === 403 || /denied/.test(String(e.message))) ? 'denied' : (navigator.onLine === false ? 'offline' : 'error'); }
   CSYNC.busy = false; syncPaint();
 }
 function syncSoon(ms = 4000){ if (!window.AUTH) return; CSYNC.dirty = true; clearTimeout(CSYNC.t); CSYNC.t = setTimeout(() => syncNow(), ms); }
