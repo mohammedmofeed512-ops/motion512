@@ -6479,7 +6479,7 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
 /* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
-const APP_VERSION = '2.1.2', APP_DATE = '17 نوفمبر 2026';
+const APP_VERSION = '2.1.3', APP_DATE = '17 نوفمبر 2026';
 const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
 const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
 const TEST_TRACKS = ['assess', 'exam', 'grad'];
@@ -6970,6 +6970,25 @@ body.ab-lock{overflow:hidden}
 .gate-ver[data-about]{cursor:pointer}.gate-ver u{text-decoration:none;color:var(--accent);font-weight:600}
 @media (max-width:620px){.ab-ov{place-items:end stretch;padding:0}.ab-in{border-radius:24px 24px 0 0;max-height:92svh;overflow-y:auto;padding:18px 16px calc(16px + env(safe-area-inset-bottom,0px))}}
 `; document.head.appendChild(st); })();
+
+/* ================= V31: the «enlarge screen» button leaves the LCD and sits in the toolbar above the camera ================= */
+function zoomBtnSync(){
+  const row = document.querySelector('#shoot .stage-btns'); if (!row) return;
+  let b = row.querySelector('.zoom-ext'); const inner = document.querySelector('#shoot .lcd-zoom');
+  if (!inner){ if (b) b.hidden = true; return; }
+  if (!b){ b = document.createElement('button'); b.type = 'button'; b.className = 'btn zoom-ext'; b.setAttribute('aria-label', 'تكبير الشاشة');
+    b.innerHTML = '<span aria-hidden="true">⤢</span> تكبير الشاشة'; b.addEventListener('click', e => { e.preventDefault(); const i = document.querySelector('#shoot .lcd-zoom'); if (i) i.click(); });
+    const vs = row.querySelector('.viewsw'); if (vs) vs.after(b); else row.prepend(b); }
+  b.hidden = false;
+}
+shootRender = (prev => function(){ const r = prev.apply(this, arguments); try { zoomBtnSync(); } catch (e) {} return r; })(shootRender);
+new MutationObserver(() => { try { zoomBtnSync(); } catch (e) {} }).observe(document.getElementById('shoot') || document.body, {childList: true, subtree: true});
+(function(){ const st = document.createElement('style'); st.textContent = `
+#shoot .lcd-zoom{display:none!important}
+.zoom-ext{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.zoom-ext[hidden]{display:none!important}
+.zoom-ext span{font-size:17px;line-height:1}
+@media (max-width:699px){.stage-btns .zoom-ext{grid-column:1/-1;justify-content:center;height:40px}}`; document.head.appendChild(st); })();
 
 render();
 coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كاميرا إلى الطاولة.', 'info');
