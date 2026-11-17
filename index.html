@@ -6479,7 +6479,7 @@ const APP_ICON = `<svg class="gate-icon" viewBox="74 74 1479 1479" role="img" ar
   const st = document.createElement('style'); st.textContent = '.gate-icon{width:84px;height:84px;display:block;border-radius:22%;margin:0 0 14px;box-shadow:0 14px 34px -14px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}@media (max-width:600px){.gate-icon{width:72px;height:72px}}'; document.head.appendChild(st); })();
 
 /* ================= V25: app shell — one screen per tab, phone bottom bar / desktop top bar, version + update check ================= */
-const APP_VERSION = '2.1.3', APP_DATE = '17 نوفمبر 2026';
+const APP_VERSION = '2.1.4', APP_DATE = '17 نوفمبر 2026';
 const UPDATE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/version.json';
 const SITE_URL = 'https://mohammedmofeed512-ops.github.io/motion512/';
 const TEST_TRACKS = ['assess', 'exam', 'grad'];
@@ -6989,6 +6989,41 @@ new MutationObserver(() => { try { zoomBtnSync(); } catch (e) {} }).observe(docu
 .zoom-ext[hidden]{display:none!important}
 .zoom-ext span{font-size:17px;line-height:1}
 @media (max-width:699px){.stage-btns .zoom-ext{grid-column:1/-1;justify-content:center;height:40px}}`; document.head.appendChild(st); })();
+
+/* ================= V32: «حدّث الآن» really updates — waits for the new offline worker instead of re-reading the old cache ================= */
+let UPD_BUSY = false;
+function updBusy(on, txt){
+  UPD_BUSY = on;
+  document.querySelectorAll('[data-me="upd"]').forEach(b => { if (on){ b.dataset.t = b.dataset.t || b.textContent; b.textContent = txt || 'جارٍ التحديث…'; b.disabled = true; } else { if (b.dataset.t) b.textContent = b.dataset.t; b.disabled = false; } });
+}
+doUpdate = async function(){
+  if (UPD_BUSY) return;
+  if (!isSite()){
+    /* a saved file or the preview page cannot replace itself: open the live link */
+    updBusy(true, 'يُفتح الرابط…');
+    const w = window.open(SITE_URL, '_blank', 'noopener');
+    setTimeout(() => updBusy(false), 1500);
+    if (!w){ const b = document.getElementById('updBanner'); if (b) b.innerHTML = `<span>هذه نسخة محفوظة لا تتحدّث وحدها. افتح الرابط واحصل على v${esc(UPD.v)}:<br><b dir="ltr" style="user-select:all">${SITE_URL}</b></span><button type="button" class="x" aria-label="إغلاق" data-me="updx">×</button>`; }
+    return;
+  }
+  updBusy(true, 'جارٍ تنزيل النسخة الجديدة…');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg){
+      try { await reg.update(); } catch (e) {}
+      const w = reg.installing || reg.waiting;
+      if (w){
+        await Promise.race([sleep(25000), new Promise(res => { const chk = () => { if (w.state === 'activated' || w.state === 'redundant') res(); }; w.addEventListener('statechange', chk); chk(); })]);
+      } else if (window.caches){
+        /* nothing new to install: drop the stored copy so the page comes straight from the internet */
+        const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('camtrainer-') && k !== 'camtrainer-fonts').map(k => caches.delete(k)));
+      }
+    }
+  } catch (e) {}
+  updBusy(true, 'يُعاد التشغيل…');
+  location.reload();
+};
 
 render();
 coach('ابدأ من حقيبة المعدات في الأسفل: اسحب كاميرا إلى الطاولة.', 'info');
